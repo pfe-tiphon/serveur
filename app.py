@@ -74,9 +74,10 @@ def listen_to_esp():
 
                         # Ignorer si c'est un heartbeat pur
                         if data.get("type") == "heartbeat":
-                            status = data.get("status", "online")
+                            #status = data.get("status", "online")
                             # On envoie le statut précis au navigateur
-                            socketio.emit('jetson_status', {'online': True, 'status': status})
+                            #socketio.emit('jetson_status', {'online': True, 'status': status})
+                            socketio.emit('jetson_status', data)
                             continue 
                         
                         # Traitement des alertes entrantes

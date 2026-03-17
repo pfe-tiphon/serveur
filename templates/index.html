@@ -61,16 +61,12 @@
         .dot { width: 10px; height: 10px; border-radius: 50%; background: #222; transition: 0.5s; }
         
         .dot.esp-on { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
-        /* États des voyants Jetson modifiés selon ta préférence */
-        .dot.jetson-standby { 
-            background: #111; /* Noir / Très sombre pour simuler l'extinction */
-            box-shadow: none; 
-        } 
+        
+        /* États des voyants Jetson */
+        .dot.jetson-standby { background: #111; box-shadow: none; } 
+        .dot.jetson-active { background: var(--accent2); box-shadow: 0 0 10px var(--accent2); }
 
-        .dot.jetson-active { 
-            background: var(--accent2); /* Vert (#00ff9d) */
-            box-shadow: 0 0 10px var(--accent2); 
-        }
+        .telemetry-val { color: var(--accent); font-weight: bold; }
 
         .btn-cmd { border: none; padding: 8px 18px; cursor: pointer; font-family: var(--font-ui); font-weight: bold; border-radius: 2px; transition: 0.2s; }
         .btn-start { background: var(--accent2); color: #000; }
@@ -96,7 +92,16 @@
     <h1>&#x2B21; TIPHON &mdash; Système d'Interception</h1>
     <div style="display:flex; gap:25px; align-items: center;">
         <div class="status-tag">LIAISON ESP: <div id="esp-dot" class="dot"></div></div>
-        <div class="status-tag">AI CORE: <div id="jetson-dot" class="dot"></div></div>
+        
+        <div class="status-tag">
+            AI CORE: <div id="jetson-dot" class="dot"></div>
+            <span style="margin-left:15px; border-left: 1px solid var(--border); padding-left: 15px; font-family:var(--font-mono); font-size: 0.7rem; display: flex; gap: 10px;">
+                <span><span id="disp-fps" class="telemetry-val">--</span> FPS</span> |
+                <span>CPU: <span id="disp-cpu" class="telemetry-val">--</span>°C</span> |
+                <span>GPU: <span id="disp-gpu" class="telemetry-val">--</span>°C</span>
+            </span>
+        </div>
+
         <div style="display:flex; gap:10px; border-left: 1px solid var(--border); padding-left: 20px;">
             <button onclick="sendCmd('START')" class="btn-cmd btn-start">LANCER IA</button>
             <button onclick="sendCmd('STOP')" class="btn-cmd btn-stop">ARRÊTER</button>
@@ -143,22 +148,33 @@
         log(msg.connected ? "Module COM détecté" : "Module COM déconnecté", msg.connected ? "sys" : "warn");
     });
 
+    // Mise à jour pour gérer la télémétrie reçue dans le heartbeat
     socket.on('jetson_status', (msg) => {
         const dot = document.getElementById('jetson-dot');
-        if (msg.online) {
-            dot.className = (msg.status === 'active') ? 'dot jetson-active' : 'dot jetson-standby';
+        
+        if (msg.status === 'active') {
+            dot.className = 'dot jetson-active';
+            
+            // Mise à jour des valeurs textuelles
+            document.getElementById('disp-fps').textContent = msg.fps || "0";
+            document.getElementById('disp-cpu').textContent = msg.cpu || "--";
+            document.getElementById('disp-gpu').textContent = msg.gpu || "--";
+            
+            // Alerte visuelle si GPU chauffe trop (> 75°C)
+            document.getElementById('disp-gpu').style.color = msg.gpu > 75 ? 'var(--warn)' : 'var(--accent)';
         } else {
-            dot.className = 'dot';
+            dot.className = 'dot jetson-standby';
+            // Reset des valeurs quand hors-ligne
+            document.getElementById('disp-fps').textContent = "--";
+            document.getElementById('disp-cpu').textContent = "--";
+            document.getElementById('disp-gpu').textContent = "--";
         }
     });
 
     socket.on('new_alert', (msg) => {
         log("CIBLE IDENTIFIÉE : " + msg.label, 'warn');
-        
-        // Stockage données
         historyData[msg.file] = msg.img;
         
-        // Création élément historique
         const item = document.createElement('div');
         item.className = 'history-item new';
         item.id = 'item-' + msg.file;
@@ -169,7 +185,6 @@
         const list = document.getElementById('history-list');
         list.insertBefore(item, list.firstChild);
         
-        // Affichage automatique de la dernière alerte
         displayImage(msg.file, msg.label);
     });
 
@@ -184,7 +199,6 @@
         document.getElementById('img-info').textContent = "CIBLE : " + label;
         document.getElementById('decision-zone').style.display = 'flex';
         
-        // Gestion sélection visuelle
         document.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
         const activeItem = document.getElementById('item-' + fileId);
         if(activeItem) activeItem.classList.add('active');
@@ -207,7 +221,6 @@
             item.remove();
             delete historyData[currentAlertId];
             
-            // Reset vue
             document.getElementById('jetson_image').style.display = 'none';
             document.getElementById('placeholder').style.display = 'block';
             document.getElementById('img-info').textContent = "CIBLE : AUCUNE";
